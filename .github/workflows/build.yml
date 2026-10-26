@@ -65,8 +65,11 @@ jobs:
         env:
           TAG: ${{ github.event.release.tag_name }}
         run: |
-          f="docs/release-notes/${TAG}.md"
-          if [ -f "$f" ]; then cp "$f" notes.md; else echo "AM Tweaks ${TAG}" > notes.md; fi
+          t="${TAG#v}"
+          for f in "docs/release-notes/${TAG}.md" "docs/release-notes/v${t}.md" "docs/release-notes/${t}.md"; do
+            if [ -f "$f" ]; then cp "$f" notes.md; break; fi
+          done
+          [ -f notes.md ] || echo "AM Tweaks ${TAG}" > notes.md
 
       - name: Attach APK to release
         if: github.event_name == 'release'
