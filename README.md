@@ -74,7 +74,9 @@ Apple Music не пересобирается и не переподписыва
 ## Сборка
 
 Каждый пуш в `main` и каждый PR собирается в GitHub Actions; APK лежит в артефактах.
-Тег `vX.Y.Z` публикует релиз с подписанным APK.
+Релиз: **Releases → Draft a new release → новый тег `vX.Y.Z` → Publish** —
+workflow соберёт подписанный APK, прикрепит его к релизу и подставит заметки из
+`docs/release-notes/vX.Y.Z.md`.
 
 Локально: Android Studio (AGP 8.5, JDK 17, SDK 35) → `Build → Build APK(s)`.
 Без своих ключей релизная сборка подписывается debug-ключом.
@@ -89,7 +91,7 @@ Apple Music не пересобирается и не переподписыва
 | `AMT_KEYSTORE_B64` | keystore (PKCS12, alias `amtweaks`) в base64 одной строкой |
 | `AMT_KEYSTORE_PASSWORD` | пароль keystore и ключа |
 
-Без секретов тег не опубликует релиз (защита от релиза с debug-подписью).
+Без секретов релиз не получит APK: workflow остановится, чтобы не выложить сборку с debug-подписью.
 
 ## Ограничения
 
