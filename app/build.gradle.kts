@@ -4,6 +4,15 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Ключ подписи релизов в репозитории НЕ хранится.
+// В GitHub Actions он приходит из секретов (AMT_KEYSTORE_B64 / AMT_KEYSTORE_PASSWORD),
+// workflow кладёт файл и передаёт путь в AMT_KEYSTORE_FILE.
+// Локально и в форках без этих переменных релиз подписывается debug-ключом.
+val releaseKeystore: File? = System.getenv("AMT_KEYSTORE_FILE")
+    ?.let { file(it) }
+    ?.takeIf { it.exists() }
+val releasePassword: String? = System.getenv("AMT_KEYSTORE_PASSWORD")
+
 android {
     namespace = "com.multik.amtweaks"
     compileSdk = 35
@@ -12,31 +21,30 @@ android {
         applicationId = "com.multik.amtweaks"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 10000 // 1.0.0 -> MAJOR*10000 + MINOR*100 + PATCH
+        versionName = "1.0.0"
     }
 
-    // Постоянный ключ: каждая новая сборка ставится поверх старой без удаления.
     signingConfigs {
-        create("release") {
-            storeFile = file("amtweaks.jks")
-            storePassword = "amtweaks"
-            keyAlias = "amtweaks"
-            keyPassword = "amtweaks"
+        if (releaseKeystore != null && !releasePassword.isNullOrEmpty()) {
+            create("release") {
+                storeFile = releaseKeystore
+                storePassword = releasePassword
+                keyAlias = "amtweaks"
+                keyPassword = releasePassword
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
+                ?: signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-        }
-        debug {
-            signingConfig = signingConfigs.getByName("release")
         }
     }
 

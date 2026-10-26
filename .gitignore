@@ -7,3 +7,8 @@ local.properties
 captures/
 .externalNativeBuild/
 .cxx/
+
+# Ключи подписи никогда не коммитим
+*.jks
+*.keystore
+*.p12

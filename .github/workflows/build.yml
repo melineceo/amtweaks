@@ -1,8 +1,10 @@
-name: Build APK
+name: Build
 
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -11,6 +13,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      AMT_KEYSTORE_B64: ${{ secrets.AMT_KEYSTORE_B64 }}
+      AMT_KEYSTORE_PASSWORD: ${{ secrets.AMT_KEYSTORE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -23,20 +28,44 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      # Ключ есть только в основном репозитории (секреты). В форках и PR
+      # секретов нет — тогда сборка подписывается debug-ключом.
+      - name: Restore signing key
+        if: env.AMT_KEYSTORE_B64 != ''
+        run: |
+          echo "$AMT_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "AMT_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - name: Refuse unsigned release
+        if: startsWith(github.ref, 'refs/tags/v') && env.AMT_KEYSTORE_B64 == ''
+        run: |
+          echo "::error::Signing secrets are not set; refusing to publish a debug-signed release."
+          exit 1
+
       - name: Build release APK
         run: gradle --no-daemon --stacktrace assembleRelease
 
       - name: Collect APK
-        run: cp app/build/outputs/apk/release/app-release.apk AMTweaks.apk
+        run: |
+          VER=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts | head -1)
+          cp app/build/outputs/apk/release/app-release.apk "AMTweaks-$VER.apk"
+          echo "APK=AMTweaks-$VER.apk" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
         with:
           name: AMTweaks
-          path: AMTweaks.apk
+          path: ${{ env.APK }}
+
+      - name: Release notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          f="docs/release-notes/${GITHUB_REF_NAME}.md"
+          if [ -f "$f" ]; then cp "$f" notes.md; else echo "AM Tweaks ${GITHUB_REF_NAME}" > notes.md; fi
 
       - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: AM Tweaks build ${{ github.run_number }}
-          files: AMTweaks.apk
+          name: AM Tweaks ${{ github.ref_name }}
+          body_path: notes.md
+          files: ${{ env.APK }}

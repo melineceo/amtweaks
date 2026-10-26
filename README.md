@@ -1,106 +1,109 @@
-# AM Tweaks — скрытые настройки Apple Music (Android)
+# AM Tweaks
 
-Material-приложение (Jetpack Compose, Material You) для переключения скрытых
-настроек Apple Music **на твоём устройстве**. Apple Music не пересобирается и
-не переподписывается — правятся только её собственные файлы настроек, так что
-загруженная музыка и обновления из Google Play остаются на месте.
+**Hidden Apple Music settings for Android — root or Shizuku, Material You.**
 
-Разобрано по коду APK **6.5.3** (`com.apple.android.music`).
+AM Tweaks exposes playback settings that Apple Music for Android ships but never shows,
+most notably the switch that stops the player from lowering audio quality when the
+network gets slow. Apple Music itself is never patched or re-signed: in root mode the
+app edits Apple Music's own settings file on your device; in Shizuku mode it opens
+Apple Music's built-in debug screen.
+
+[Download the latest release](../../releases/latest) · [Русский ниже](#ru)
+
+> Unofficial project, not affiliated with or endorsed by Apple Inc.
+> Apple Music is a trademark of Apple Inc.
 
 ---
 
-## Что умеет
+<a id="ru"></a>
 
-- Показывает каталог скрытых функций, найденных в коде (сейчас **27** — счётчик
-  прямо в приложении).
-- **Root** — полноценно: щёлкаешь переключатели, приложение само закрывает
-  Apple Music, правит `shared_prefs` и возвращает управление.
-- **Shizuku** — открывает *настоящее* скрытое меню отладки внутри Apple Music.
+## Что это
 
-### Почему два режима работают по-разному
+Приложение на Jetpack Compose (Material 3 / Material You) для скрытых настроек
+Apple Music на Android. Главная из них — **адаптивное качество**: если его выключить,
+плеер держит лучший разрешённый поток и не опускает качество под скорость сети.
 
-| Возможность | Root | Shizuku |
+Apple Music не пересобирается и не переподписывается, поэтому загруженная музыка
+и обновления из Google Play остаются на месте.
+
+Каталог собран по коду Apple Music **6.5.3** (`com.apple.android.music`):
+**27 скрытых функций**.
+
+## Режимы
+
+| | Root | Shizuku |
 |---|---|---|
 | Переключать настройки по одной | да | нет* |
-| Открыть встроенное debug-меню Apple Music | — (не нужно) | да (экспериментально) |
+| Открыть встроенное debug-меню Apple Music | — | да (экспериментально) |
 
 \* Shizuku работает от UID `shell`, а файлы настроек Apple Music приватные
-(owner = UID приложения, режим `0700`). Прочитать/записать их `shell` не может —
-поэтому пощёлкать переключатели умеет только root. Зато `shell` имеет право
-`START_ANY_ACTIVITY` и может открыть скрытый экран отладки, где переключатели
-стоят уже внутри самого приложения.
+(владелец — сама Apple Music, режим `0700`). Читать и писать их может только root.
+Зато у `shell` есть право `START_ANY_ACTIVITY`, и он может открыть скрытый экран
+отладки, где переключатели стоят внутри самого приложения.
 
----
+## Установка
 
-## Главная настройка
+1. Скачай `AMTweaks-x.y.z.apk` из [Releases](../../releases/latest) и установи.
+2. **Root:** при первом запуске выдай доступ суперпользователя.
+   **Shizuku:** запусти службу Shizuku, переключи режим наверху и дай доступ.
+3. В режиме root нажми «Выключить» в карточке авто-снижения качества
+   или настрой остальные переключатели.
 
-`key_is_bit_stream_switching_enabled` → **адаптивное качество (авто-снижение)**.
-Когда `false`, плеер держит лучший разрешённый поток и не опускает качество под
-скорость сети. В приложении для неё есть большая кнопка «Выключить».
+> После обновления Apple Music из Play она может сбросить эти настройки —
+> открой её один раз и примени заново. Выход из аккаунта Apple стирает все её настройки.
 
-Остальные ключи (качество по Wi-Fi/соте, Lossless, Dolby Atmos, нормализация
-громкости, экспериментальный выбор дорожки, flavor-режим и отладочные флаги) —
-в списках ниже кнопки.
+## Как это работает
 
----
+- Настройки воспроизведения живут в
+  `/data/data/com.apple.android.music/shared_prefs/com.apple.android.music.playback_preferences.xml`.
+  В режиме root приложение закрывает Apple Music, меняет ровно одну строку XML
+  и записывает файл обратно в тот же inode, так что владелец, права и SELinux-метка
+  не меняются.
+- Ключевой флаг — `key_is_bit_stream_switching_enabled`. Когда он `false`, трек-селектор
+  плеера оставляет одну лучшую дорожку из разрешённых настройками качества
+  вместо адаптивного набора.
+- Скрытое меню — фрагмент внутри `MainContentActivity`, который открывается extra
+  `intent_fragment_key` с enum-значением. `am start` такое не передаёт, поэтому режим
+  Shizuku собирает Intent сам и вызывает `IActivityManager.startActivity` через биндер
+  Shizuku. Файл
+  `app/src/main/java/com/apple/android/music/navigation/NavigationIntentFragmentRequestCode.kt`
+  — заглушка с тем же полным именем, что и enum в Apple Music: Java сериализует enum
+  по имени класса и константы, и Apple Music восстанавливает значение своим классом.
+  Это нужно для совместимости, код Apple в репозитории не содержится.
 
-## Как собрать
+## Сборка
 
-APK здесь не приложен: его нужно собрать у себя (мне в песочнице закрыт доступ к
-Google Maven / Android SDK). Делается в пару кликов.
+Каждый пуш в `main` и каждый PR собирается в GitHub Actions; APK лежит в артефактах.
+Тег `vX.Y.Z` публикует релиз с подписанным APK.
 
-### Android Studio (рекомендуется)
-1. `File → Open…` → выбрать папку `AMTweaks`.
-2. Studio сама подтянет Gradle и зависимости (нужен интернет при первой сборке).
-3. `Build → Build APK(s)` или запуск на телефоне. APK появится в
-   `app/build/outputs/apk/debug/app-debug.apk`.
+Локально: Android Studio (AGP 8.5, JDK 17, SDK 35) → `Build → Build APK(s)`.
+Без своих ключей релизная сборка подписывается debug-ключом.
 
-### Командная строка
-В проекте нет `gradle-wrapper.jar` (бинарник), поэтому сначала создай wrapper
-системным Gradle 8.9+, затем собери:
-```
-gradle wrapper --gradle-version 8.9
-./gradlew assembleDebug
-```
+### Подпись (для мейнтейнера)
 
-Минимальные версии: Android Studio Koala+ (AGP 8.5), JDK 17, Android SDK 35.
+Ключ релизов не хранится в репозитории. Workflow берёт его из секретов
+репозитория (**Settings → Secrets and variables → Actions**):
 
----
+| Секрет | Значение |
+|---|---|
+| `AMT_KEYSTORE_B64` | keystore (PKCS12, alias `amtweaks`) в base64 одной строкой |
+| `AMT_KEYSTORE_PASSWORD` | пароль keystore и ключа |
 
-## Как пользоваться
+Без секретов тег не опубликует релиз (защита от релиза с debug-подписью).
 
-1. Поставь APK, дай ему **root** (в менеджере суперпользователя) **или** запусти
-   **Shizuku** и выдай доступ.
-2. **Root:** открой нужный раздел и щёлкай переключатели. Готово.
-3. **Shizuku:** нажми «Открыть скрытое меню отладки» — откроется экран Apple Music.
+## Ограничения
 
-> После обновления Apple Music из Play настройки могут сброситься — открой
-> приложение один раз и примени заново. Выход из аккаунта Apple стирает все её
-> настройки.
+- Запуск меню через Shizuku зависит от сигнатуры `IActivityManager.startActivity`,
+  которая меняется между версиями Android. Учтены `startActivity` и
+  `startActivityWithFeature` (Android 11–15). Если не сработает — используй root.
+- Ключи настроек проверены на Apple Music 6.5.3. В новых версиях Apple может их
+  переименовать.
 
----
+## Благодарности
 
-## Зависимости
+- [libsu](https://github.com/topjohnwu/libsu) — root
+- [Shizuku](https://github.com/RikkaApps/Shizuku-API) — режим Shizuku
 
-- Jetpack Compose + Material 3 (Material You / dynamic color).
-- [libsu](https://github.com/topjohnwu/libsu) — root (su).
-- [Shizuku API](https://github.com/RikkaApps/Shizuku-API) — режим Shizuku.
+## Лицензия
 
-## Важно про Shizuku-запуск меню
-
-Открытие скрытого экрана идёт через системный `IActivityManager.startActivity`,
-сигнатура которого меняется между версиями Android. Учтены `startActivity` и
-`startActivityWithFeature` (Android 11–15). Если на твоей прошивке не сработает —
-пользуйся режимом root, он надёжнее.
-
-Файл `com/apple/android/music/navigation/NavigationIntentFragmentRequestCode.kt`
-— намеренная заглушка-двойник enum'а Apple Music: имя пакета, класса и констант
-менять нельзя, по ним Apple Music восстанавливает значение.
-
----
-
-## Статус проверки
-
-Логику правки XML я прогнал на тестовых данных отдельно — проходит. Сам проект
-в этой среде не компилировался (нет Android SDK), так что первая сборка — у тебя
-в Android Studio. Если словишь ошибку сборки — скинь текст, поправлю.
+[MIT](LICENSE)
